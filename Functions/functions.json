@@ -1,44 +1,20 @@
-
     {
         "$schema": "https://schema.management.azure.com/schemas/2015-01-01/deploymentTemplate.json#",
         "contentVersion": "1.0.0.0",
         "parameters": {
-            "NetworkInterfaceType": {
-            "type": "string",
-            "metadata": {
-                    "description": "Whether to have a public or private NIC"
-                },
-                "allowedValues": [
-                "Public",
-                "Private"
-                ]
-            },
-            "IPAllocationMethod": {
-                "type": "string",
-                "defaultValue": "Dynamic",
-                "allowedValues": [
-                "Dynamic",
-                "Static"
-                ]
-            },
-            "PIPCount":{
-                "type":"int",
-                "defaultValue":1
+            "NICCount": {
+                "type": "int",
+                "defaultValue": 1
             }
         },
         "variables": {
             "NetworkName": "lambda-vnet",
             "Subnet1Name": "lambda-subnet1",
             "Subnet2Name": "lambda-subnet2",
-            "NICName":"lambdanic1",
-            "PublicIPName":"[concat(variables('NICName'),'-pip')]",
-            "requirePublicIP":"[and(equals(parameters('NetworkInterfaceType'),'Public'),greater(parameters('PIPCount'),0))]",
-            "publicIP1": {
-                    "id": "[resourceId('Microsoft.Network/publicIPAddresses',Concat(variables('NICName'),'-pip'))]"
-                }
+            "NICName": "lambdanic"
+  
         },
         "resources": [
-
             {
                 "apiVersion": "2015-06-15",
                 "type": "Microsoft.Network/virtualNetworks",
@@ -60,10 +36,8 @@
                                 "addressPrefix": "10.0.0.0/24"
                             }
                         },
-                        
                         {
                             "name": "[variables('Subnet2Name')]",
-             
                             "properties": {
                                 "addressPrefix": "10.0.1.0/24"
                             }
@@ -71,54 +45,33 @@
                     ]
                 }
             },
-
-        {
-                "apiVersion": "2017-04-01",
-                "condition": "[equals(parameters('NetworkInterfaceType'),'Public')]",
-                "type": "Microsoft.Network/publicIPAddresses",
-                "name": "[variables('PublicIPName')]",
-                "location": "[resourceGroup().location]",
-                "tags": {
-                    "displayName": "[Concat(variables('NICName'),'-pip')]"
-                },
-                "properties": {
-                    "publicIPAllocationMethod": "[parameters('IPAllocationMethod')]",
-                    "dnsSettings": {
-                        "domainNameLabel": "[Concat(variables('NICName'),'-pip')]"
-                    }
-                }
-            },
-        {
-            
+            {
                 "apiVersion": "2017-04-01",
                 "type": "Microsoft.Network/networkInterfaces",
-                "name": "[variables('NICName')]",
+                "name":  "[concat(variables('nicName'),'-', padleft(copyIndex(1),2,'0'))]",
                 "location": "[resourceGroup().location]",
+                "copy": {
+                    "name": "NICCount",
+                    "count": "[parameters('NICCount')]"
+                },
                 "tags": {
                     "displayName": "parameters('NICName')"
                 },
-                "dependsOn": [
-                    "[concat('Microsoft.Network/publicIPAddresses/', variables('NICName'),'-pip')]"
-                ],
+                "dependsOn": [],
                 "properties": {
                     "ipConfigurations": [
                         {
                             "name": "ipconfig1",
                             "properties": {
-                                "privateIPAllocationMethod": "[parameters('IPAllocationMethod')]",
+                                "privateIPAllocationMethod": "Dynamic",
                                 "subnet": {
                                     "id": "[concat(resourceId('Microsoft.Network/virtualNetworks', variables('NetworkName')), '/subnets/',variables('Subnet1Name'))]"
                                 },
-                                "publicIPAddress":  "[if(variables('requirePublicIP'), variables('publicIP1'), json('null'))]"      
                             }
                         }
                     ]
                 }
             }
-
-            
-
         ],
         "outputs": {}
     }
-
