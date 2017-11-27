@@ -37,15 +37,15 @@ Describe "Virtual Machine Tests" -tag "AzureInfrastructure"{
         $vmName="InfraTest-Vm1"
         $vm= Get-AzureRmVM -Name $vmName -ResourceGroupName $resourceGroup
     
-        it "Virtual Machine $vm Should Exist" {
+        it "Virtual Machine $vmName Should Exist" {
             $vm| Should Not be $null
         }
 
-        it "Virtual Machine $vm Should Be Size Standard_DS1_v2" {
+        it "Virtual Machine $vmName Should Be Size Standard_DS1_v2" {
             $vm.HardwareProfile.VmSize | should be "Standard_DS1_v2"
         }
 
-        it "Virtual Machine $vm Should Be Located in West Europe" {
+        it "Virtual Machine $vmName Should Be Located in West Europe" {
             $vm.Location | should be "westeurope"
         }
 
