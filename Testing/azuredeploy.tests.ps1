@@ -13,8 +13,8 @@ $here = Split-Path -Parent $MyInvocation.MyCommand.Path
 $template = Split-Path -Leaf $here
 
 
-$ShortGUID = ([system.guid]::newguid().guid).Substring(0, 5)
-$TempValidationRG = "$ShortGUID-Pester-Validation-RG"
+
+$TempValidationRG = "Pester-Validation-RG"
 $location = "West Europe"
 
 
@@ -22,9 +22,9 @@ $location = "West Europe"
 
 
 Describe "Template: $template" -Tags Unit {
-    BeforeAll {
-        New-AzureRmResourceGroup -Name $TempValidationRG -Location $Location
-    }
+    # BeforeAll {
+    #     New-AzureRmResourceGroup -Name $TempValidationRG -Location $Location
+    # }
 
     
     Context "Template Syntax" {
@@ -92,7 +92,7 @@ Describe "Template: $template" -Tags Unit {
         }
     }
 
-    AfterAll {
-        Remove-AzureRmResourceGroup $TempValidationRG -Force
-    }
+    # AfterAll {
+    #     Remove-AzureRmResourceGroup $TempValidationRG -Force
+    # }
 }

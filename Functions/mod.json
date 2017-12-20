@@ -1,0 +1,424 @@
+{
+  "$schema": "http://schema.management.azure.com/schemas/2015-01-01/deploymentTemplate.json#",
+  "contentVersion": "1.0.0.0",
+  "parameters": {
+    "clientPrefix": {
+      "type": "string",
+      "metadata": {
+        "description": "Naming prefix for the domain controllers to create"
+      }
+    },
+    "rootDnsName": {
+      "type": "string",
+      "metadata": {
+        "Description": "Root DNS name of the service. (i.e. wtwsaas.com or v.place)"
+      }
+    },
+    "timeZone": {
+      "type": "string",
+      "metadata": {
+        "description": "Time zone the VMs should be set for the clinet, use tzutil /l for a list of valid string values"
+      }
+    },
+    "localAdminPassword": {
+      "type": "securestring",
+      "metadata": {
+        "description": "The password for the administrator account of the new VM "
+      }
+    },
+    "domainAdminPassword": {
+      "type": "securestring",
+      "metadata": {
+        "description": "The password for the administrator account of the domain"
+      }
+    },
+    "ouPath": {
+      "type": "string",
+      "metadata": {
+        "description": "AD OU to place the servers"
+      }
+    },
+    "rdInstanceCount": {
+      "type": "int",
+      "minValue": 1,
+      "maxValue": 2,
+      "metadata": {
+        "description": "Number of core server vms to build"
+      }
+    },
+    "vmSize": {
+      "type": "string",
+      "metadata": {
+        "description": "Size of the session host vms"
+      }
+    },
+    "imageSku": {
+      "type": "string",
+      "metadata": {
+        "description": "Windows OS version"
+      }
+    },
+    "subnetID": {
+      "type": "string",
+      "metadata": {
+        "Description": "The name of the Virtual Network to Create"
+      }
+    },
+    "softwareType": {
+      "type": "string",
+      "metadata": {
+        "description": "TW Software to install on session hosts"
+      }
+    },
+    "assetLocation": {
+      "type": "string",
+      "metadata": {
+        "description": "The location of resources such as templates and DSC modules that the script is dependent"
+      }
+    },
+    "sasToken": {
+      "type": "securestring",
+      "metadata": {
+        "description": "Shared access signature for the assetLocation"
+      }
+    },
+    "vaultName": {
+      "type": "string",
+      "metadata": {
+        "description": "Name of Key Vault that has a secret"
+      }
+    },
+    "certUriWithVersion": {
+      "type": "string",
+      "metadata": {
+        "description": "Uri of the certificate in Key Vault"
+      }
+    }
+  },
+  "variables": {
+    "clientPrefix": "[toLower(parameters('clientPrefix'))]",
+    "identifier": "[toLower(replace(parameters('rootDnsName'),'.',''))]",
+    "domainName": "[concat(variables('clientPrefix'),'.',parameters('rootDnsName'))]",
+    "localAdminUsername": "[concat(variables('clientPrefix'),'LocalAdmin')]",
+    "domainAdminUsername": "[concat(variables('clientPrefix'),'Admin')]",
+    "osStorageAccountPrefix": "[concat(variables('clientPrefix'),variables('identifier'),'os')]",
+    "dataStorageAccountName": "[concat(variables('clientPrefix'),variables('identifier'),'data')]",
+    "rdPrefix": "[concat(variables('clientPrefix'),'-rd')]",
+    "rdPublicIpName": "[concat(variables('rdPrefix'),'-vip')]",
+    "rdLbName": "[concat(variables('rdPrefix'),'-lb')]",
+    "rdLbID": "[resourceId('Microsoft.Network/loadBalancers',variables('rdLbName'))]",
+    "rdFrontendIpConfigID": "[concat(variables('rdLbID'),'/frontendIPConfigurations/rdlb-frontend')]",
+    "imagePublisher": "MicrosoftWindowsServerRemoteDesktop",
+    "imageOffer": "WindowsServer",
+    "scriptFilePath": "dsc/ConfigRdsServer.zip",
+    "packageFilePath": "[concat(parameters('assetLocation'),'/packages')]"
+
+  },
+  "resources": [
+    {
+      "apiVersion": "2015-06-15",
+      "type": "Microsoft.Compute/availabilitySets",
+      "name": "[concat(variables('rdPrefix'),'-avset')]",
+      "location": "[resourceGroup().location]",
+      "tags": {
+        "displayName": "rdAvSet"
+      }
+    },
+    {
+      "apiVersion": "2015-06-15",
+      "type": "Microsoft.Network/publicIPAddresses",
+      "name": "[variables('rdPublicIpName')]",
+      "location": "[resourceGroup().location]",
+      "tags": {
+        "displayName": "rdPublicIp"
+      },
+      "properties": {
+        "publicIPAllocationMethod": "Static"
+      }
+    },
+    {
+      "apiVersion": "2015-06-15",
+      "type": "Microsoft.Network/loadBalancers",
+      "name": "[variables('rdLbName')]",
+      "location": "[resourceGroup().location]",
+      "dependsOn": [
+        "[concat('Microsoft.Network/publicIPAddresses/',variables('rdPublicIpName'))]"
+      ],
+      "tags": {
+        "displayName": "rdLoadBalancer"
+      },
+      "properties": {
+        "frontendIPConfigurations": [
+          {
+            "name": "rdlb-frontend",
+            "properties": {
+              "publicIPAddress": {
+                "id": "[resourceId('Microsoft.Network/publicIPAddresses',variables('rdPublicIpName'))]"
+              }
+            }
+          }
+        ],
+        "backendAddressPools": [
+          {
+            "name": "rdlb-backendPool"
+          }
+        ]
+      }
+    },
+    {
+      "apiVersion": "2015-06-15",
+      "type": "Microsoft.Network/loadBalancers/inboundNatRules",
+      "name": "[concat(variables('rdLbName'), '/', variables('rdPrefix'),'-', padleft(copyIndex(1),2,'0'))]",
+      "location": "[resourceGroup().location]",
+      "copy": {
+        "name": "lbNatcopy",
+        "count": "[parameters('rdInstanceCount')]"
+      },
+      "dependsOn": [
+        "[concat('Microsoft.Network/loadBalancers/', variables('rdLbName'))]"
+      ],
+      "tags": {
+        "displayName": "rdNatRules"
+      },
+      "properties": {
+        "frontendIPConfiguration": {
+          "id": "[variables('rdFrontendIpConfigID')]"
+        },
+        "protocol": "tcp",
+        "frontendPort": "[copyIndex(5000)]",
+        "backendPort": 6555,
+        "enableFloatingIP": false
+      }
+    },
+    {
+      "apiVersion": "2015-06-15",
+      "type": "Microsoft.Network/networkInterfaces",
+      "name": "[concat(variables('rdPrefix'),'-', padleft(copyIndex(1),2,'0'), '-nic')]",
+      "location": "[resourceGroup().location]",
+      "copy": {
+        "name": "rd-nic-copy",
+        "count": "[parameters('rdInstanceCount')]"
+      },
+      "dependsOn": [
+        "[concat('Microsoft.Network/loadBalancers/', variables('rdLbName'))]",
+        "[concat('Microsoft.Network/loadBalancers/', variables('rdLbName'),'/inboundNatRules/',variables('rdPrefix'),'-', padleft(copyIndex(1),2,'0'))]"
+      ],
+      "tags": {
+        "displayName": "rdNics"
+      },
+      "properties": {
+        "ipConfigurations": [
+          {
+            "name": "ipconfig",
+            "properties": {
+              "privateIPAllocationMethod": "Dynamic",
+              "subnet": {
+                "id": "[parameters('subnetID')]"
+              },
+              "loadBalancerBackendAddressPools": [
+                {
+                  "id": "[concat(resourceId('Microsoft.Network/loadBalancers',variables('rdLbName')),'/backendAddressPools/rdlb-backendPool')]"
+                }
+              ],
+              "loadBalancerInboundNatRules": [
+                {
+                  "id": "[concat(variables('rdLbID'),'/inboundNatRules/',variables('rdPrefix'),'-', padleft(copyIndex(1),2,'0'))]"
+                }
+              ]
+            }
+          }
+        ]
+      }
+    },
+    {
+      "apiVersion": "2015-06-15",
+      "type": "Microsoft.Compute/virtualMachines",
+      "name": "[concat(variables('rdPrefix'),'-', padleft(copyIndex(1),2,'0'))]",
+      "location": "[resourceGroup().location]",
+      "copy": {
+        "name": "rd-vm-copy",
+        "count": "[parameters('rdInstanceCount')]"
+      },
+      "dependsOn": [
+        "[resourceId('Microsoft.Compute/availabilitySets', concat(variables('rdPrefix'),'-avset'))]",
+        "rd-nic-copy"
+      ],
+      "tags": {
+        "displayName": "rdVms"
+      },
+      "properties": {
+        "hardwareProfile": {
+          "vmSize": "[parameters('vmSize')]"
+        },
+        "availabilitySet": {
+          "id": "[resourceId('Microsoft.Compute/availabilitySets', concat(variables('rdPrefix'),'-avset'))]"
+        },
+
+        "osProfile": {
+          "computerName": "[concat(variables('rdPrefix'),'-', padleft(copyIndex(1),2,'0'))]",
+          "adminUsername": "[variables('localAdminUsername')]",
+          "adminPassword": "[parameters('localAdminPassword')]",
+          "windowsConfiguration": {
+            "enableAutomaticUpdates": false,
+            "provisionVMAgent": true,
+            "timeZone": "[parameters('timeZone')]"
+          }
+        },
+        "storageProfile": {
+          "imageReference": {
+            "publisher": "[variables('imagePublisher')]",
+            "offer": "[variables('imageOffer')]",
+            "sku": "[parameters('imageSku')]",
+            "version": "latest"
+          },
+          "osDisk": {
+            "name": "osdisk",
+            "vhd": {
+              "uri": "[concat('http://',concat(variables('osStorageAccountPrefix'), mod(copyIndex(2),2)),'.blob.core.windows.net/vhds/',variables('rdPrefix'),'-',padleft(copyIndex(1),2,'0'),'-osdisk.vhd')]"
+            },
+            "caching": "ReadWrite",
+            "createOption": "FromImage"
+          }
+        },
+        "networkProfile": {
+          "networkInterfaces": [
+            {
+              "id": "[resourceId('Microsoft.Network/networkInterfaces',concat(variables('rdPrefix'),'-', padleft(copyIndex(1),2,'0'), '-nic'))]"
+            }
+          ]
+        },
+        "diagnosticsProfile": {
+          "bootDiagnostics": {
+            "enabled": "true",
+            "storageUri": "[concat('http://',variables('dataStorageAccountName'),'.blob.core.windows.net')]"
+          }
+        }
+      },
+      "resources": [
+        {
+          "apiVersion": "2015-06-15",
+          "type": "Microsoft.Compute/virtualMachines/extensions",
+          "name": "[concat(variables('rdPrefix'),'-', padleft(copyIndex(1),2,'0'),'/BGInfo')]",
+          "location": "[resourceGroup().location]",
+          "dependsOn": [
+            "[resourceId('Microsoft.Compute/virtualMachines', concat(variables('rdPrefix'),'-', padleft(copyIndex(1),2,'0')))]"
+          ],
+          "tags": {
+            "displayName": "BgInfo"
+          },
+          "properties": {
+            "publisher": "Microsoft.Compute",
+            "type": "BGInfo",
+            "typeHandlerVersion": "2.1",
+            "AutoUpgradeMinorVersion": "true",
+            "settings": {
+              "Properties": [
+              ]
+            }
+          }
+        },
+        {
+          "apiVersion": "2015-06-15",
+          "type": "Microsoft.Compute/virtualMachines/extensions",
+          "name": "[concat(variables('rdPrefix'),'-', padleft(copyIndex(1),2,'0'),'/JoinDomain')]",
+          "location": "[resourceGroup().location]",
+          "dependsOn": [
+            "[resourceId('Microsoft.Compute/virtualMachines', concat(variables('rdPrefix'),'-', padleft(copyIndex(1),2,'0')))]",
+            "[concat('Microsoft.Compute/virtualMachines/', variables('rdPrefix'),'-', padleft(copyIndex(1),2,'0'), '/extensions/BGInfo')]"
+          ],
+          "tags": {
+            "displayName": "JoinDomain"
+          },
+          "properties": {
+            "publisher": "Microsoft.Compute",
+            "type": "JsonADDomainExtension",
+            "typeHandlerVersion": "1.0",
+            "settings": {
+              "Name": "[variables('domainName')]",
+              "OUPath": "[concat('OU=SessionHosts,OU=xServers,DC=',parameters('clientPrefix'),',DC=v,DC=place')]",
+              "User": "[concat(variables('domainAdminUsername'), '@', variables('domainName'))]",
+              "Restart": "true",
+              "Options": "3"
+            },
+            "protectedsettings": {
+              "Password": "[parameters('domainAdminPassword')]"
+            }
+          }
+        },
+        {
+          "apiVersion": "2015-06-15",
+          "type": "Microsoft.Compute/virtualMachines/extensions",
+          "name": "[concat(variables('rdPrefix'),'-', padleft(add(copyIndex(),1),2,'0'),'/ConfigRD')]",
+          "location": "[resourceGroup().location]",
+          "dependsOn": [
+            "[resourceId('Microsoft.Compute/virtualMachines', concat(variables('rdPrefix'),'-', padleft(add(copyIndex(),1),2,'0')))]",
+            "[concat('Microsoft.Compute/virtualMachines/', variables('rdPrefix'),'-', padleft(copyIndex(1),2,'0'), '/extensions/JoinDomain')]"
+          ],
+          "tags": {
+            "displayName": "ConfigRD"
+          },
+          "properties": {
+            "publisher": "Microsoft.Powershell",
+            "type": "DSC",
+            "typeHandlerVersion": "2.8",
+            "autoUpgradeMinorVersion": "true",
+            "settings": {
+              "ModulesUrl": "[concat(parameters('assetLocation'),'/',variables('scriptFilePath'),parameters('sasToken'))]",
+              "ConfigurationFunction": "ConfigRD.ps1\\SessionHost",
+              "Properties": {
+                "DomainName": "[variables('domainName')]",
+                "SoftwareType": "[parameters('softwareType')]",
+                "InstallerLocation": "\\\\files\\installers",
+                "AdminCreds": {
+                  "UserName": "[variables('domainAdminUsername')]",
+                  "Password": "PrivateSettingsRef:AdminPassword"
+                }
+              }
+            },
+            "protectedSettings": {
+              "Items": {
+                "AdminPassword": "[parameters('domainAdminPassword')]"
+              }
+            }
+          }
+        },
+        {
+          "apiVersion": "2015-06-15",
+          "type": "Microsoft.Compute/virtualMachines/extensions",
+          "name": "[concat(variables('rdPrefix'),'-', padleft(add(copyIndex(),1),2,'0'),'/AntiMalware')]",
+          "location": "[resourceGroup().location]",
+          "dependsOn": [
+            "[resourceId('Microsoft.Compute/virtualMachines', concat(variables('rdPrefix'),'-', padleft(add(copyIndex(),1),2,'0')))]",
+            "[concat('Microsoft.Compute/virtualMachines/', variables('rdPrefix'),'-', padleft(copyIndex(1),2,'0'), '/extensions/ConfigRD')]"
+          ],
+          "tags": {
+            "displayName": "AntiMalware"
+          },
+          "properties": {
+            "publisher": "Microsoft.Azure.Security",
+            "type": "IaaSAntimalware",
+            "typeHandlerVersion": "1.3",
+            "autoUpgradeMinorVersion": "true",
+            "settings": {
+              "AntimalwareEnabled": "true",
+              "Exclusions": {
+                "Paths": "",
+                "Extensions": ".txt;.igx;.igy",
+                "Processes": "taskmgr.exe;iglooextreme.exe;RAFM.exe"
+              },
+              "RealtimeProtectionEnabled": "true",
+              "ScheduledScanSettings": {
+                "isEnabled": "true",
+                "scanType": "Quick",
+                "day": "7",
+                "time": "120"
+              }
+            },
+            "protectedSettings": null
+          }
+        }
+      ]
+    }
+  ]
+}
+

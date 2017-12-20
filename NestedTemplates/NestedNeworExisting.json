@@ -15,7 +15,7 @@
         }
     },
     "variables": {
-        "templatelink": "[concat('https://raw.githubusercontent.com/sam-cogan/Demos/master/DemoExamples/',parameters('newOrExisting'),'StorageAccount.json')]"
+        "templatelink": "[concat('https://raw.githubusercontent.com/sam-cogan/Demos/master/NestedTemplates/',parameters('newOrExisting'),'StorageAccount.json')]"
     },
     "resources": [
         {

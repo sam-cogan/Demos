@@ -314,7 +314,7 @@
                     ],
                     "properties": {
                         "configuration": {
-                            "name": "[parameters('configurationName')]"
+                            "name": "[parameters('configurationName')]",,
                         }
                     }
                 }

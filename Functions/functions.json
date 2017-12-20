@@ -20,6 +20,7 @@
                 "type": "Microsoft.Network/virtualNetworks",
                 "name": "[variables('NetworkName')]",
                 "location": "[resourceGroup().location]",
+                
                 "tags": {
                     "displayName": "[variables('NetworkName')]"
                 },
@@ -57,7 +58,9 @@
                 "tags": {
                     "displayName": "parameters('NICName')"
                 },
-                "dependsOn": [],
+                "dependsOn": [
+                    "[concat('Microsoft.Network/virtualNetworks/', variables('NetworkName'))]"
+                ],
                 "properties": {
                     "ipConfigurations": [
                         {

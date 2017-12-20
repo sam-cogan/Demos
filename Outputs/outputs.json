@@ -1,0 +1,444 @@
+﻿{
+    "$schema": "https://schema.management.azure.com/schemas/2015-01-01/deploymentTemplate.json#",
+    "contentVersion": "1.0.0.0",
+  "parameters": {
+    "environmentType": {
+      "type": "string",
+      "allowedValues": [
+        "Standard",
+        "Premium"
+      ]
+    },
+    "clientPrefix": {
+      "type": "string",
+      "metadata": {
+        "description": "Prefix to be used for this client"
+      }
+    },
+    "rootDnsName": {
+      "type": "string",
+      "metadata": {
+        "Description": "Root DNS name of the service. (i.e. wtwsaas.com or v.place)"
+      }
+    },
+    "timeZone": {
+      "type": "string",
+      "metadata": {
+        "description": "Time zone the VMs should be set for the clinet, use tzutil /l for a list of valid string values"
+      }
+    },
+    "localAdminPassword": {
+      "type": "securestring",
+      "metadata": {
+        "description": "The password for the administrator account of the new VM "
+      }
+    },
+    "domainAdminPassword": {
+      "type": "securestring",
+      "metadata": {
+        "description": "The password for the administrator account of the domain"
+      }
+    },
+    "sqlAdminPassword": {
+      "type": "securestring",
+      "metadata": {
+        "description": "The password for the Azure SQL server account"
+      }
+    },
+    "assetLocation": {
+      "type": "string",
+      "metadata": {
+        "description": "The location of resources such as templates and DSC modules that the script is dependent"
+      }
+    },
+    "sasToken": {
+      "type": "securestring",
+      "metadata": {
+        "description": "Shared access signature for the assetLocation"
+      }
+    },
+    "rdInstanceCount": {
+      "defaultValue": 1,
+      "metadata": {
+        "description": "Number of session host servers to create"
+      },
+      "type": "int"
+    },
+    "rdVmSize": {
+      "type": "string",
+      "defaultValue": "Standard_DS3_V2",
+      "metadata": {
+        "description": "Size of session host servers to create"
+      }
+    },
+    "softwareType": {
+      "type": "string",
+      "allowedValues": [
+        "rafm",
+        "resq",
+        "igloo"
+      ],
+      "metadata": {
+        "description": "TW Software to install on session hosts"
+      }
+    },
+    "vaultName": {
+      "type": "string",
+      "metadata": {
+        "description": "Name of Key Vault that has a secret"
+      }
+    },
+    "vaultResourceGroup": {
+      "type": "string",
+      "defaultValue": "[resourceGroup().Name]",
+      "metadata": {
+        "description": "Name of Resource Group containing the Key Vault that has a secret"
+      }
+    },
+
+    "certUriWithVersion": {
+      "type": "string",
+      "metadata": {
+        "description": "Uri of the certificate in Key Vault"
+      }
+    },
+    "pfxFile": {
+      "type": "securestring",
+      "metadata": {
+        "description": "Name of the certificate PFX file used to secure the RDS gateway servers"
+      }
+    },
+    "pfxPassword": {
+      "type": "securestring",
+      "metadata": {
+        "description": "Password to install certificate PFX"
+      }
+    },
+    "registerAppProxy": {
+      "type": "bool",
+      "metadata": {
+        "description": "Register AAD Application Proxy with AAD.  Set to false for test/dev environments"
+      }
+    },
+    "appPlanSkuName": {
+      "type": "string",
+      "defaultValue": "B1",
+      "allowedValues": [
+        "F1",
+        "D1",
+        "B1",
+        "B2",
+        "B3",
+        "S1",
+        "S2",
+        "S3",
+        "P1",
+        "P2",
+        "P3",
+        "P4"
+      ],
+      "metadata": {
+        "description": "Describes plan's pricing tier and instance size. Check details at https://azure.microsoft.com/en-us/pricing/details/app-service/"
+      }
+    },
+    "appPlanSkuCapacity": {
+      "type": "int",
+      "defaultValue": 1,
+      "minValue": 1,
+      "metadata": {
+        "description": "Describes plan's instance count"
+      }
+    }
+  },
+  "variables": {
+    "environmentSettings": {
+      "Standard": {
+        "storageAccountType": "Standard_LRS",
+        "vmSize": "Standard_D2",
+        "instanceCount": 1,
+        "dnsServers": [
+          "10.0.2.11"
+        ],
+        "fsDataDiskSize": "512",
+        "fsDeploymentTemplateFilePath": "templates/fsDeploymentSingle.json",
+        "sqlEdition": "Basic",
+        "sqlRequestedServiceObjectiveName": "Basic"
+      },
+      "Premium": {
+        "storageAccountType": "Premium_LRS",
+        "vmSize": "Standard_DS2_V2",
+        "instanceCount": 2,
+        "dnsServers": [
+          "10.0.2.11",
+          "10.0.2.12"
+        ],
+        "fsDataDiskSize": "512",
+        "fsDeploymentTemplateFilePath": "templates/fsDeploymentCluster.json",
+        "sqlEdition": "Standard",
+        "sqlRequestedServiceObjectiveName": "S0"
+      }
+    },
+    "currentEnvironmentSettings": "[variables('environmentSettings')[parameters('environmentType')]]",
+    "storageAccountType": "[variables('currentEnvironmentSettings').fsStorageAccountType]",
+    "vmSize": "[variables('currentEnvironmentSettings').vmSize]",
+    "instanceCount": "[variables('currentEnvironmentSettings').instanceCount]",
+    "dnsServers": "[variables('currentEnvironmentSettings').dnsServers]",
+    "fsDataDiskSize": "[variables('currentEnvironmentSettings').fsDataDiskSize]",
+
+    "domainName": "[concat(toLower(parameters('clientPrefix')),'.',toLower(parameters('rootDnsName')))]",
+    "gwExternalURL": "[concat('gateway.',variables('domainName'))]",
+    "dnsArray": "[split(variables('domainName'),'.')]",
+    "coreOuPath": "[concat('OU=Core,OU=xServers,DC=',parameters('clientPrefix'),',DC=v,DC=place')]",
+    "rdsOuPath": "[concat('OU=SessionHost,OU=xServers,DC=',variables('dnsArray')[0],',DC=',variables('dnsArray')[1],',DC=',variables('dnsArray')[2])]",
+
+    "vnetAddressPrefix": "10.0.0.0/21",
+    "coreSubnetPrefix": "10.0.2.0/23",
+    "clientSubnetPrefix": "10.0.4.0/22",
+    "gatewaySubnetPrefix": "10.0.0.1/26",
+    "dmzSubnetPrefix": "10.0.0.64/26",
+    "clusterSubnetPrefix": "10.0.0.192/26",
+    "gwLbIpAddress": "10.0.2.20",
+    "fsClusterName": "fsc",
+    "fsClusterIpAddress": "10.0.2.30",
+
+    "imagePublisher": "MicrosoftWindowsServer",
+    "rdsImagePublisher": "MicrosoftWindowsServerRemoteDesktop",
+    "imageOffer": "WindowsServer",
+    "imageSku2012": "2012-R2-Datacenter",
+    "imageSku2016": "2016-Datacenter",
+    "imageSkuRDS": "Remote-Desktop-Session-Host",
+
+    "sqlEdition": "[variables('currentEnvironmentSettings').sqlEdition]",
+    "sqlCollation": "SQL_Latin1_General_CP1_CI_AS",
+    "sqlMaxSizeBytes": "1073741824",
+    "sqlRequestedServiceObjectiveName": "[variables('currentEnvironmentSettings').sqlRequestedServiceObjectiveName]",
+
+    "coreDeploymentTemplateFilePath": "templates/coreDeployment.json",
+    "dcDeploymentTemplateFilePath": "templates/dcDeployment.json",
+    "vnetUpdateTemplateFilePath": "templates/vnetUpdate.json",
+    "fsDeploymentTemplateFilePath": "[variables('currentEnvironmentSettings').fsDeploymentTemplateFilePath]",
+    "rdDeploymentTemplateFilePath": "templates/rdDeployment.json",
+    "gwDeploymentTemplateFilePath": "templates/gwDeployment.json"
+  },
+  "resources": [
+    {
+      "name": "coreDeployment",
+      "type": "Microsoft.Resources/deployments",
+      "apiVersion": "2015-01-01",
+      "dependsOn": [ ],
+      "properties": {
+        "mode": "Incremental",
+        "templateLink": {
+          "uri": "[concat(parameters('assetLocation'), '/', variables('coreDeploymentTemplateFilePath'), parameters('sasToken'))]",
+          "contentVersion": "1.0.0.0"
+        },
+        "parameters": {
+          "clientPrefix": { "value": "[parameters('clientPrefix')]" },
+          "rootDnsName": { "value": "[parameters('rootDnsName')]" },
+          "vnetAddressPrefix": { "value": "[variables('vnetAddressPrefix')]" },
+          //"gatewaySubnetPrefix": { "value": "[variables('gatewaySubnetPrefix')]" },
+          //"dmzSubnetPrefix": { "value": "[variables('dmzSubnetPrefix')]" },
+          "clusterSubnetPrefix": { "value": "[variables('clusterSubnetPrefix')]" },
+          "coreSubnetPrefix": { "value": "[variables('coreSubnetPrefix')]" },
+          "clientSubnetPrefix": { "value": "[variables('clientSubnetPrefix')]" },
+          "storageAccountType": { "value": "[variables('storageAccountType')]" },
+          "instanceCount": { "value": "[variables('instanceCount')]" },
+          "sqlEdition": { "value": "[variables('sqlEdition')]" },
+          "sqlCollation": { "value": "[variables('sqlCollation')]" },
+          "sqlMaxSizeBytes": { "value": "[variables('sqlMaxSizeBytes')]" },
+          "sqlRequestedServiceObjectiveName": { "value": "[variables('sqlRequestedServiceObjectiveName')]" },
+          "sqlAdminPassword": { "value": "[parameters('sqlAdminPassword')]" },
+          "appPlanSkuName": { "value": "[parameters('appPlanSkuName')]" },
+          "appPlanSkuCapacity": { "value": "[parameters('appPlanSkuCapacity')]" }
+        }
+      }
+    },
+    {
+      "name": "dcDeployment",
+      "type": "Microsoft.Resources/deployments",
+      "apiVersion": "2015-01-01",
+      "dependsOn": [
+        "[concat('Microsoft.Resources/deployments/', 'coreDeployment')]"
+      ],
+      "properties": {
+        "mode": "Incremental",
+        "templateLink": {
+          "uri": "[concat(parameters('assetLocation'), '/', variables('dcDeploymentTemplateFilePath'), parameters('sasToken'))]",
+          "contentVersion": "1.0.0.0"
+        },
+        "parameters": {
+          "clientPrefix": { "value": "[parameters('clientPrefix')]" },
+          "rootDnsName": { "value": "[parameters('rootDnsName')]" },
+          "timeZone": { "value": "[parameters('timeZone')]" },
+          "localAdminPassword": { "value": "[parameters('localAdminPassword')]" },
+          "domainAdminPassword": { "value": "[parameters('domainAdminPassword')]" },
+          "fsClusterName": { "value": "[variables('fsClusterName')]" },
+          "instanceCount": { "value": "[variables('instanceCount')]" },
+          "rdInstanceCount": { "value": "[parameters('rdInstanceCount')]" },
+          "imageSku": { "value": "[variables('imageSku2012')]" },
+          "vmSize": { "value": "[variables('vmSize')]" },
+          "subnetID": { "value": "[reference('coreDeployment').outputs.coreSubnetID.value]" },
+          "subnetAddressPrefix": { "value": "[variables('coreSubnetPrefix')]" },
+          "gwLbIpAddress": { "value": "[variables('gwLbIpAddress')]" },
+          "assetLocation": { "value": "[parameters('assetLocation')]" },
+          "sasToken": { "value": "[parameters('sasToken')]" },
+          "registerAppProxy": { "value": "[parameters('registerAppProxy')]" },
+          "vaultName": { "value": "[parameters('vaultName')]" },
+          "certUriWithVersion": { "value": "[parameters('certUriWithVersion')]" }
+        }
+      }
+    },
+    {
+      "name": "vnetUpdate",
+      "type": "Microsoft.Resources/deployments",
+      "apiVersion": "2015-01-01",
+      "dependsOn": [
+        "[concat('Microsoft.Resources/deployments/', 'dcDeployment')]"
+      ],
+      "properties": {
+        "mode": "Incremental",
+        "templateLink": {
+          "uri": "[concat(parameters('assetLocation'), '/', variables('vnetUpdateTemplateFilePath'), parameters('sasToken'))]",
+          "contentVersion": "1.0.0.0"
+        },
+        "parameters": {
+          "vnetName": { "value": "[reference('coreDeployment').outputs.vnetName.value]" },
+          "vnetAddressPrefix": { "value": "[variables('vnetAddressPrefix')]" },
+          //"gatewaySubnetPrefix": { "value": "[variables('gatewaySubnetPrefix')]" },
+          //"dmzSubnetPrefix": { "value": "[variables('dmzSubnetPrefix')]" },
+          "clusterSubnetPrefix": { "value": "[variables('clusterSubnetPrefix')]" },
+          "coreSubnetPrefix": { "value": "[variables('coreSubnetPrefix')]" },
+          "clientSubnetPrefix": { "value": "[variables('clientSubnetPrefix')]" },
+          //"gatewaySubnetName": { "value": "[reference('coreDeployment').outputs.gatewaySubnetName.value]" },
+          //"dmzSubnetName": { "value": "[reference('coreDeployment').outputs.dmzSubnetName.value]" },
+          "clusterSubnetName": { "value": "[reference('coreDeployment').outputs.clusterSubnetName.value]" },
+          "coreSubnetName": { "value": "[reference('coreDeployment').outputs.coreSubnetName.value]" },
+          "clientSubnetName": { "value": "[reference('coreDeployment').outputs.clientSubnetName.value]" },
+          //"gatewayNsgName": { "value": "[reference('coreDeployment').outputs.gatewayNsgName.value]" },
+          //"dmzNsgName": { "value": "[reference('coreDeployment').outputs.dmzNsgName.value]" },
+          "clusterNsgName": { "value": "[reference('coreDeployment').outputs.clusterNsgName.value]" },
+          "coreNsgName": { "value": "[reference('coreDeployment').outputs.coreNsgName.value]" },
+          "clientNsgName": { "value": "[reference('coreDeployment').outputs.clientNsgName.value]" },
+          "dnsServerAddress": { "value": "[variables('dnsServers')]" }
+          //"dnsServerAddress": { "value": "[reference('dcDeployment').outputs.dnsServers.value]" }
+        }
+      }
+    },
+    {
+      "name": "fsDeployment",
+      "type": "Microsoft.Resources/deployments",
+      "apiVersion": "2015-01-01",
+      "dependsOn": [
+        "[concat('Microsoft.Resources/deployments/', 'vnetUpdate')]"
+      ],
+      "properties": {
+        "mode": "Incremental",
+        "templateLink": {
+          "uri": "[concat(parameters('assetLocation'), '/', variables('fsDeploymentTemplateFilePath'), parameters('sasToken'))]",
+          "contentVersion": "1.0.0.0"
+        },
+        "parameters": {
+          "clientPrefix": { "value": "[parameters('clientPrefix')]" },
+          "rootDnsName": { "value": "[parameters('rootDnsName')]" },
+          "timeZone": { "value": "[parameters('timeZone')]" },
+          "localAdminPassword": { "value": "[parameters('localAdminPassword')]" },
+          "domainAdminPassword": { "value": "[parameters('domainAdminPassword')]" },
+          "ouPath": { "value": "[variables('coreOuPath')]" },
+          "fsClusterName": { "value": "[variables('fsClusterName')]" },
+          "fsClusterIpAddress": { "value": "[variables('fsClusterIpAddress')]" },
+          "imageSku": { "value": "[variables('imageSku2016')]" },
+          "vmSize": { "value": "[variables('vmSize')]" },
+          "fsDataDiskSize": { "value": "[variables('fsDataDiskSize')]" },
+          "instanceCount": { "value": "[variables('instanceCount')]" },
+          "subnetID": { "value": "[reference('coreDeployment').outputs.coreSubnetID.value]" },
+          "subnetAddressPrefix": { "value": "[variables('coreSubnetPrefix')]" },
+          "clusterSubnetID": { "value": "[reference('coreDeployment').outputs.clusterSubnetID.value]" },
+          "assetLocation": { "value": "[parameters('assetLocation')]" },
+          "sasToken": { "value": "[parameters('sasToken')]" },
+          "vaultName": { "value": "[parameters('vaultName')]" },
+          "vaultResourceGroup": {"value": "[parameters('vaultResourceGroup')]"},
+
+            "certUriWithVersion": { "value": "[parameters('certUriWithVersion')]" }
+          }
+      }
+    },
+    {
+      "name": "rdDeployment",
+      "type": "Microsoft.Resources/deployments",
+      "apiVersion": "2015-01-01",
+      "dependsOn": [
+        "[concat('Microsoft.Resources/deployments/', 'fsDeployment')]"
+      ],
+      "properties": {
+        "mode": "Incremental",
+        "templateLink": {
+          "uri": "[concat(parameters('assetLocation'), '/', variables('rdDeploymentTemplateFilePath'), parameters('sasToken'))]",
+          "contentVersion": "1.0.0.0"
+        },
+        "parameters": {
+          "clientPrefix": { "value": "[parameters('clientPrefix')]" },
+          "rootDnsName": { "value": "[parameters('rootDnsName')]" },
+          "timeZone": { "value": "[parameters('timeZone')]" },
+          "localAdminPassword": { "value": "[parameters('localAdminPassword')]" },
+          "domainAdminPassword": { "value": "[parameters('domainAdminPassword')]" },
+          "ouPath": { "value": "[variables('rdsOuPath')]" },
+          "rdInstanceCount": { "value": "[parameters('rdInstanceCount')]" },
+          "vmSize": { "value": "[parameters('rdVmSize')]" },
+          "imageSku": { "value": "[variables('imageSkuRDS')]" },
+          "subnetID": { "value": "[reference('coreDeployment').outputs.clientSubnetID.value]" },
+          "softwareType": { "value": "[parameters('softwareType')]" },
+          "assetLocation": { "value": "[parameters('assetLocation')]" },
+          "sasToken": { "value": "[parameters('sasToken')]" },
+          "vaultName": { "value": "[parameters('vaultName')]" },
+          "certUriWithVersion": { "value": "[parameters('certUriWithVersion')]" }
+        }
+      }
+    },
+    {
+      "name": "gwDeployment",
+      "type": "Microsoft.Resources/deployments",
+      "apiVersion": "2015-01-01",
+      "dependsOn": [
+        "[concat('Microsoft.Resources/deployments/', 'rdDeployment')]"
+      ],
+      "properties": {
+        "mode": "Incremental",
+        "templateLink": {
+          "uri": "[concat(parameters('assetLocation'), '/', variables('gwDeploymentTemplateFilePath'), parameters('sasToken'))]",
+          "contentVersion": "1.0.0.0"
+        },
+        "parameters": {
+          "clientPrefix": { "value": "[parameters('clientPrefix')]" },
+          "rootDnsName": { "value": "[parameters('rootDnsName')]" },
+          "timeZone": { "value": "[parameters('timeZone')]" },
+          "localAdminPassword": { "value": "[parameters('localAdminPassword')]" },
+          "domainAdminPassword": { "value": "[parameters('domainAdminPassword')]" },
+          "ouPath": { "value": "[variables('rdsOuPath')]" },
+          "sqlServerName": { "value": "[reference('coreDeployment').outputs.sqlServerName.value]" },
+          "sqlAdminPassword": { "value": "[parameters('sqlAdminPassword')]" },
+          "databaseName": { "value": "[reference('coreDeployment').outputs.rdsDbName.value]" },
+          "instanceCount": { "value": "[variables('instanceCount')]" },
+          "rdInstanceCount": { "value": "[parameters('rdInstanceCount')]" },
+          "imageSku": { "value": "[variables('imageSku2016')]" },
+          "subnetID": { "value": "[reference('coreDeployment').outputs.coreSubnetID.value]" },
+          "subnetPrefix": { "value": "[variables('coreSubnetPrefix')]" },
+          "gwExternalURL": { "value": "[variables('gwExternalURL')]" },
+          "gwLbIpAddress": { "value": "[variables('gwLbIpAddress')]" },
+          "pfxFile": { "value": "[parameters('pfxFile')]" },
+          "pfxPassword": { "value": "[parameters('pfxPassword')]" },
+          "assetLocation": { "value": "[parameters('assetLocation')]" },
+          "sasToken": { "value": "[parameters('sasToken')]" },
+          "vaultName": { "value": "[parameters('vaultName')]" },
+          "vaultResourceGroup": { "value": "[parameters('vaultResourceGroup')]" },
+          "certUriWithVersion": { "value": "[parameters('certUriWithVersion')]" }
+        }
+      }
+    }
+  ],
+  "outputs": {
+    "rdsOuPath": {
+      "type": "string",
+      "value": "[variables('rdsOuPath')]"
+    }
+  }
+}

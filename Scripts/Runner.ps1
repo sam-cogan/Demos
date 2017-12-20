@@ -13,7 +13,6 @@ New-AzureRmResourceGroupDeployment -Name "CrossSubDemo" -ResourceGroupName "cros
 
 ####If and Conditions
 
-
 Select-AzureRmSubscription -SubscriptionId 469048f1-92af-4c71-a63b-330ec31d2b82 
 New-AzureRmResourceGroup -Name "conditionalDeployment" -Location "West Europe" -Force
 New-AzureRmResourceGroupDeployment -Name "conditionalDemo" -ResourceGroupName "conditionalDeployment" -TemplateFile ".\if\if.json" -TemplateParameterFile ".\if\if.params.json" 
@@ -22,6 +21,9 @@ New-AzureRmResourceGroupDeployment -Name "conditionalDemo" -ResourceGroupName "c
 
 Select-AzureRmSubscription -SubscriptionId 469048f1-92af-4c71-a63b-330ec31d2b82 
 New-AzureRmResourceGroup -Name "NestedNewOrExistingDeployment" -Location "West Europe" -Force
-New-AzureRmResourceGroupDeployment -Name "NestedNewOrExistingDemo" -ResourceGroupName "NestedNewOrExistingDeployment" -TemplateFile ".\NestedTemplates\NestedNewOrExisting.json" -TemplateParameterFile ".\NestedTemplates\NestedNewOrExisting.params.json" 
+$nestedResult=New-AzureRmResourceGroupDeployment -Name "NestedNewOrExistingDemo" -ResourceGroupName "NestedNewOrExistingDeployment" -TemplateFile ".\NestedTemplates\NestedNewOrExisting.json" -TemplateParameterFile ".\NestedTemplates\NestedNewOrExisting.params.json" 
 
 
+##Tests###
+
+..\testing\azuredeploy.tests.ps1
