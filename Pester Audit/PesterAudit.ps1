@@ -100,12 +100,8 @@ Describe "Storage Account Tests" {
     $storageAccounts = Get-AzureRmStorageAccount -ResourceGroupName $ResourceGroupName
 
     foreach ($storageAccount in $storageAccounts) {
-        It "$($storageAccount.name)  Should have encrypted blob storage" {
+        It "$($storageAccount.StorageAccountName )  Should have encrypted blob storage" {
             $storageAccount.Encryption.Services.Blob.enabled | should be $true
-        }
-
-        It "$($storageAccount.name)  Should have encrypted file storage" {
-            $storageAccount.Encryption.Services.File.enabled | should be $true
         }
     }
 

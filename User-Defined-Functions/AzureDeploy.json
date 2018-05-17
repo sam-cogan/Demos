@@ -1,0 +1,101 @@
+{
+    "$schema": "https://schema.management.azure.com/schemas/2015-01-01/deploymentTemplate.json#",
+    "contentVersion": "1.0.0.0",
+    "parameters": {
+        "prefix": {
+            "type": "string",
+            "metadata": {
+                "description": "prefix for naming resources"
+            }
+        }
+    },
+    "variables": {
+        "Subnet1Name": "lambda-subnet1",
+        "Subnet2Name": "lambda-subnet2"
+    },
+    "functions": [
+        {
+            "namespace": "lambdaToys",
+            "members": {
+                "getNicName": {
+                    "parameters": [
+                        {
+                            "name": "prefix",
+                            "type": "string"
+                        },
+                        {
+                            "name": "vmType",
+                            "type": "string"
+                        },
+                        {
+                            "name": "id",
+                            "type": "string"
+                        }
+                    ],
+                    "output": {
+                        "type": "string",
+                        "value": "[concat(toLower(parameters('prefix')),'-',parameters('vmType'),'-nic-',padLeft(parameters('id'),2,'0'))]"
+                    }
+                }
+            }
+        }
+    ],
+    "resources": [
+        {
+            "apiVersion": "2015-06-15",
+            "type": "Microsoft.Network/virtualNetworks",
+            "name": "VirtualNetwork1",
+            "location": "[resourceGroup().location]",
+            "tags": {
+                "displayName": "VirtualNetwork1"
+            },
+            "properties": {
+                "addressSpace": {
+                    "addressPrefixes": [
+                        "10.0.0.0/16"
+                    ]
+                },
+                "subnets": [
+                    {
+                        "name": "[variables('Subnet1Name')]",
+                        "properties": {
+                            "addressPrefix": "10.0.0.0/24"
+                        }
+                    },
+                    {
+                        "name": "[variables('Subnet2Name')]",
+                        "properties": {
+                            "addressPrefix": "10.0.1.0/24"
+                        }
+                    }
+                ]
+            }
+        },
+        {
+            "apiVersion": "2015-06-15",
+            "type": "Microsoft.Network/networkInterfaces",
+            "name": "[lambdaToys.getNicName(parameters('prefix'),'web','1')]",
+            "location": "[resourceGroup().location]",
+            "tags": {
+                "displayName": "[lambdaToys.getNicName(parameters('prefix'),'web','1')]"
+            },
+            "dependsOn": [
+                "Microsoft.Network/virtualNetworks/VirtualNetwork1"
+            ],
+            "properties": {
+                "ipConfigurations": [
+                    {
+                        "name": "ipconfig1",
+                        "properties": {
+                            "privateIPAllocationMethod": "Dynamic",
+                            "subnet": {
+                                "id": "[concat(resourceId('Microsoft.Network/virtualNetworks', 'VirtualNetwork1'), '/subnets/',variables('Subnet1Name'))]"
+                            }
+                        }
+                    }
+                ]
+            }
+        }
+    ],
+    "outputs": {}
+}
