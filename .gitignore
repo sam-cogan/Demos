@@ -46,3 +46,5 @@ Network Trash Folder
 Temporary Items
 .apdisk
 Conditions/Conditional.1.json
+acs-engine-terraform/.terraform/
+acs-engine-terraform/translations/

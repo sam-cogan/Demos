@@ -1,0 +1,58 @@
+{
+  "apiVersion": "vlabs",
+  "properties": {
+    "orchestratorProfile": {
+      "orchestratorType": "Kubernetes",
+      "orchestratorRelease": "${orchestrator_version}",
+      "kubernetesConfig": {
+        "enableRBAC": true,
+        "enableAggregatedAPIs": true
+      }
+    },
+    "masterProfile": {
+      "count": ${master_vm_count},
+      "dnsPrefix": "${dns_prefix}",
+      "vmSize": "${master_vm_size}",
+      "OSDiskSizeGB": 64,
+      "storageProfile" : "ManagedDisks"
+    },
+    "agentPoolProfiles": [
+      {
+          "name": "linuxpool",
+          "count": ${linux_worker_vm_count},
+          "vmSize": "${linux_vm_size}",
+          "availabilityProfile": "AvailabilitySet",
+          "OSDiskSizeGB": 64,
+          "storageProfile" : "ManagedDisks"
+      },
+      {
+          "name": "windowspool",
+          "count": ${windows_worker_vm_count},
+          "vmSize": "${windows_vm_size}",
+          "availabilityProfile": "AvailabilitySet",
+          "OSDiskSizeGB": 128,
+          "storageProfile" : "ManagedDisks",
+          "osType": "Windows"
+      }
+    ],
+    "windowsProfile": {
+      "adminUsername": "${admin_user_name}",
+      "adminPassword": "${admin_password}",
+      "WindowsSku": "${windows_sku}"
+    },
+    "linuxProfile": {
+      "adminUsername": "${admin_user_name}",
+      "ssh": {
+        "publicKeys": [
+          {
+            "keyData": "${ssh_key}"
+          }
+        ]
+      }
+    },
+    "servicePrincipalProfile": {
+      "clientId": "${client_ID}",
+      "secret": "${client_secret}"
+    }
+  }
+}

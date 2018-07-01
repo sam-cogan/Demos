@@ -1,0 +1,65 @@
+{
+    "$schema": "https://schema.management.azure.com/schemas/2015-01-01/deploymentTemplate.json#",
+    "contentVersion": "1.0.0.0",
+    "parameters": {
+        "aksClusterName": {
+           "type": "string",
+           "metadata": {
+                "description": ""
+            },
+            "defaultValue": "samcogancomAKS-EU"
+        }
+    },
+    "variables": {},
+    "resources": [
+        {
+            "type": "Microsoft.TerraformOSS/providerregistrations",
+            "name": "[parameters('aksClusterName')]",
+            "apiVersion": "2018-05-01-preview",
+            "location": "westcentralus",
+            "properties": {
+               "providertype": "kubernetes",
+               "settings":
+               {
+                "inline_config": "[Base64ToString(ListCredential(resourceId('Microsoft.ContainerService/managedClusters/accessProfiles', parameters('aksClusterName'),'clusterAdmin'), '2017-08-31').properties.kubeConfig)]"
+               }
+             }
+         },
+
+         {
+            "type": "Microsoft.TerraformOSS/resources",
+            "name": "NginxPod",
+            "apiVersion": "2018-05-01-preview",
+            "location": "westcentralus",
+            "properties": {
+               "providerId": "[resourceId('Microsoft.TerraformOSS/providerregistrations', parameters('aksClusterName'))]",
+               "resourcetype": "kubernetes_pod",
+               "settings": {
+                  "metadata": [
+                     {
+                       "name": "nginx",
+                       "labels": {
+                          "App": "nginx"
+                        }
+                     }
+                  ],
+                  "spec": [
+                    {
+                      "container": {
+                        "image": "nginx:1.7.8",
+                        "name": "nginx",
+                        "port": {
+                          "container_port": 80
+                       }
+                     }
+                   }
+                 ]
+               }
+             },
+             "dependsOn": [
+               "[resourceId('Microsoft.TerraformOSS/providerregistrations', parameters('aksClusterName'))]"
+            ]
+         }
+    ],
+    "outputs": {}
+}
