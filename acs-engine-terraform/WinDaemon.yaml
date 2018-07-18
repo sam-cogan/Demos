@@ -1,0 +1,38 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: win-daemon
+---
+
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  name: win-daemon
+  namespace: win-daemon
+  labels:
+spec:
+  selector:
+    matchLabels:
+      name: win-daemon
+  template:
+    metadata:
+      labels:
+        name: win-daemon
+    spec:
+      tolerations:
+        - key: os
+          operator: Equal
+          value: windows
+          effect: NoSchedule
+      containers:
+      - name: win-daemon
+        image: microsoft/iis:windowsservercore-1709
+        resources:
+          limits:
+            memory: 800Mi
+          requests:
+            cpu: 100m
+            memory: 200Mi
+      nodeSelector:
+        beta.kubernetes.io/os: windows
+      terminationGracePeriodSeconds: 30

@@ -22,9 +22,9 @@ $location = "West Europe"
 
 
 Describe "Template: $template" -Tags Unit {
-    # BeforeAll {
-    #     New-AzureRmResourceGroup -Name $TempValidationRG -Location $Location
-    # }
+     BeforeAll {
+         New-AzureRmResourceGroup -Name $TempValidationRG -Location $Location
+    }
 
     
     Context "Template Syntax" {
@@ -57,27 +57,11 @@ Describe "Template: $template" -Tags Unit {
             'Microsoft.Network/virtualNetworks',
             'Microsoft.Network/publicIPAddresses',
             'Microsoft.Network/loadBalancers',
-            'Microsoft.Compute/virtualMachineScaleSets',
-            'Microsoft.Automation/automationAccounts',
-            'Microsoft.Insights/autoscaleSettings'
             $templateResources = (get-content "$here\azuredeploy.json" | ConvertFrom-Json -ErrorAction SilentlyContinue).Resources.type
             $templateResources | Should Be $expectedResources
         }
         
-        It "Contains the expected DSC extension properties" {
-            $expectedDscExtensionProperties = 'RegistrationKey',
-            'RegistrationUrl',
-            'NodeConfigurationName',
-            'ConfigurationMode',
-            'ConfigurationModeFrequencyMins',
-            'RefreshFrequencyMins',
-            'RebootNodeIfNeeded',
-            'ActionAfterReboot',
-            'AllowModuleOverwrite',
-            'Timestamp'
-            $dscExtensionProperties = (get-content "$here\azuredeploy.json" | ConvertFrom-Json -ErrorAction SilentlyContinue).Resources | ? type -eq Microsoft.Compute/virtualMachineScaleSets | % properties | % virtualMachineProfile | % extensionProfile | % extensions | ? name -eq Microsoft.Powershell.DSC | % properties | % settings | % Properties | % Name
-            $dscExtensionProperties | Should Be $expectedDscExtensionProperties
-        }
+
 
     }
     
@@ -92,7 +76,7 @@ Describe "Template: $template" -Tags Unit {
         }
     }
 
-    # AfterAll {
-    #     Remove-AzureRmResourceGroup $TempValidationRG -Force
-    # }
+     AfterAll {
+         Remove-AzureRmResourceGroup $TempValidationRG -Force
+     }
 }
