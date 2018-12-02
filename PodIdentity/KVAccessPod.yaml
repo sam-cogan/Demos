@@ -1,0 +1,29 @@
+apiVersion: v1
+kind: Pod
+metadata:
+  name: keyvault-demo
+  labels:
+      aadpodidbinding: "demo-kv-access"
+
+spec:
+  containers:
+  - name: keyvault-demo
+    image: nginx
+    volumeMounts:
+    - name: secret-1
+      mountPath: /secret1
+      readOnly: true
+  volumes:
+  - name: secret-1
+    flexVolume:
+      driver: "azure/kv"
+      options:
+        usepodidentity: "true"
+        resourcegroup: <Name of Resource Group holding Key Vault>
+        keyvaultname: <Name of Key Vault>
+        keyvaultobjectname: <Name of Secret>
+        keyvaultobjecttype: secret # OPTIONS: secret, key, cert
+        keyvaultobjectversion: <Version ID of Key Vault Secreet>
+        subscriptionid: <ID of subscription holding Key Vault>
+        tenantid: <Azure AD Tenant ID>
+   
