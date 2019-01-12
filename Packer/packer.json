@@ -37,7 +37,7 @@
             "type": "powershell",
             "inline": [
                 "WINRM QuickConfig -q",
-                "Set-PSRepository -Name PSGallery -InstallationPolicy Trusted"
+                "Set-PSRepository -Name PSGallery -InstallationPolicy Trusted -Force"
             ]
         },
         {
