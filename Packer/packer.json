@@ -7,8 +7,7 @@
         "managed_image_prefix": "",
         "managed_image_resource_group_name": "",
         "PackageLocation": "",
-        "WorkingDirectory": ""
-
+        "WorkingDirectory": "" 
       },
       
     "builders": [
