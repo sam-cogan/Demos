@@ -37,7 +37,8 @@
             "type": "powershell",
             "inline": [
                 "WINRM QuickConfig -q",
-                "Set-PSRepository -Name PSGallery -InstallationPolicy Trusted -Force"
+                "Install-PackageProvider Nuget -ForceBootstrap -Force",
+                "Set-PSRepository -Name PSGallery -InstallationPolicy Trusted"
             ]
         },
         {
