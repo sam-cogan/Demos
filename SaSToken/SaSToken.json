@@ -1,0 +1,102 @@
+{
+    "$schema": "https://schema.management.azure.com/schemas/2015-01-01/deploymentTemplate.json#",
+    "contentVersion": "1.0.0.0",
+    "parameters": {
+        "keyVaultName": {
+            "type": "string",
+            "metadata": {
+                "description": "Name of KeyVault to Store SaS Token"
+            }
+        },
+        "tenantID": {
+            "type": "string",
+            "metadata": {
+                "description": "Azure AD Tenant ID"
+            }
+        },
+        "keyVaultAccessObjectID": {
+            "type": "string",
+            "metadata": {
+                "description": "ID of user or App to grant access to KV"
+            }
+        },
+        "StorageAccountName": {
+            "type": "string",
+            "metadata": {
+                "description": "Name of Storage Account to Create"
+            }
+        },
+        "accountSasProperties": {
+            "type": "object",
+            "defaultValue": {
+                "signedServices": "b",
+                "signedPermission": "rw",
+                "signedExpiry": "2019-03-01T00:00:01Z",
+                "signedResourceTypes": "o"
+            }
+        }
+    },
+    "variables": {},
+    "resources": [
+        {
+            "type": "Microsoft.Storage/storageAccounts",
+            "apiVersion": "2018-07-01",
+            "name": "[parameters('StorageAccountName')]",
+            "location": "[resourceGroup().location]",
+            "tags": {
+                "displayName": "[parameters('StorageAccountName')]"
+            },
+            "sku": {
+                "name": "Standard_LRS"
+            },
+            "kind": "StorageV2"
+        },
+        {
+            "type": "Microsoft.KeyVault/vaults",
+            "apiVersion": "2018-02-14",
+            "name": "[parameters('keyVaultName')]",
+            "location": "[resourceGroup().location]",
+            "tags": {
+                "displayName": "[parameters('keyVaultName')]"
+            },
+            "properties": {
+                "enabledForDeployment": true,
+                "enabledForTemplateDeployment": true,
+                "enabledForDiskEncryption": true,
+                "tenantId": "[parameters('tenantID')]",
+                "accessPolicies": [
+                    {
+                        "tenantId": "[parameters('tenantID')]",
+                        "objectId": "[parameters('keyVaultAccessObjectID')]",
+                        "permissions": {
+                            "keys": [
+                                "get"
+                            ],
+                            "secrets": [
+                                "list",
+                                "get",
+                                "set"
+                            ]
+                        }
+                    }
+                ],
+                "sku": {
+                    "name": "standard",
+                    "family": "A"
+                }
+            }
+        },
+        {
+            "apiVersion": "2018-02-14",
+            "type": "Microsoft.KeyVault/vaults/secrets",
+            "dependsOn": [
+                "[concat('Microsoft.KeyVault/vaults/', parameters('keyVaultName'))]"
+            ],
+            "name": "[concat(parameters('keyVaultName'), '/', 'StorageSaSToken')]",
+            "properties": {
+                "value": "[listAccountSas(parameters('StorageAccountName'), '2018-07-01', parameters('accountSasProperties')).accountSasToken]"
+            }
+        }
+    ],
+    "outputs": {}
+}
