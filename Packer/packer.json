@@ -47,7 +47,7 @@
             "manifest_file": "DSCConfiguration.ps1",
             "configuration_name": "WebServer",
             "install_package_management": true,
-            "working_dir":"{{user `WorkingDirectory`}}",
+            "working_dir": "{{user `WorkingDirectory`}}",
             "install_modules": {
                 "xPSDesiredStateConfiguration": "6.4.0.0"
             },
