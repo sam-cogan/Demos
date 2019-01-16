@@ -44,7 +44,7 @@
         {
             "type": "dsc",
             "manifest_file": "DSCConfiguration.ps1",
-            "configuration_name": "WebServer",
+            "configuration_name": "webConfiguration",
             "install_package_management": true,
             "working_dir": "{{user `WorkingDirectory`}}",
             "install_modules": {
