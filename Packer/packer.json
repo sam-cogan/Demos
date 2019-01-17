@@ -29,7 +29,8 @@
             "winrm_timeout": "3m",
             "winrm_username": "packer",
             "location": "West Europe",
-            "vm_size": "Standard_DS2"
+            "vm_size": "Standard_DS2",
+            "async_resourcegroup_delete":true
         }
     ],
     "provisioners": [
