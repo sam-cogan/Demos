@@ -1,0 +1,41 @@
+resources:
+- repo: self
+queue:
+  name: Hosted VS2017
+#Your build pipeline references a secret variable named ‘client_secret’. Create or edit the build pipeline for this YAML file, define the variable on the Variables tab, and then select the option to make it secret. See https://go.microsoft.com/fwlink/?linkid=865972
+#Your build pipeline references an undefined variable named ‘managed_image_prefix’. Create or edit the build pipeline for this YAML file, define the variable on the Variables tab. See https://go.microsoft.com/fwlink/?linkid=865972
+variables:
+  client_id: 'clientID'
+  tenant_id: 'tenantID'
+  subscription_id: 'subID'
+  managed_image_resource_group_name: 'app1ResourceGroup'
+  PackageLocation: 'https://storageaccount.blob.core.windows.net/webapp/SampleApps.zip'
+steps:
+- powershell: |
+   $tools="$env:build_sourcesdirectory\Packer"
+   Write-Host $tools
+   Write-Host "##vso[task.setvariable variable=PATH;]${env:PATH};${tools}";
+  displayName: 'Set Packer Env Variable'
+
+- task: CopyFiles@2
+  displayName: 'Copy Files to: $(System.DefaultWorkingDirectory)'
+  inputs:
+    SourceFolder: Packer
+
+    Contents: DSCConfiguration.ps1
+
+    TargetFolder: '$(System.DefaultWorkingDirectory)'
+
+
+- task: PackerBuild@1
+  displayName: 'Build immutable image'
+  inputs:
+    templateType: custom
+
+    customTemplateLocation: Packer/packer.json
+
+    customTemplateParameters: '{"client_id":"$(client_id)","client_secret":"$(client_secret)","tenant_id":"$(tenant_id)","subscription_id":"$(subscription_id)","managed_image_prefix":"$(managed_image_prefix)","managed_image_resource_group_name":"$(managed_image_resource_group_name)","PackageLocation":"$(PackageLocation)"}'
+
+    imageUri: '$imageURL'
+
+
