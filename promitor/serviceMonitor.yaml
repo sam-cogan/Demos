@@ -1,0 +1,17 @@
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: promitor-scraper
+  # Change this to the namespace the Prometheus instance is running in
+  # namespace: default
+  labels:
+    prometheus: kube-prometheus
+    app: promitor-scraper
+spec:
+  selector:
+    matchLabels:
+      app: promitor-scraper # target gitlab service
+  endpoints:
+  - port: http
+    Path: /prometheus/scrape
+    interval: 15s
