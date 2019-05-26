@@ -27,9 +27,15 @@ spec:
           - containerPort: 2020
         env:
         - name: FLUENT_AZURE_WORKSPACE_ID
-          value: "1912cc63-1f43-4eb2-b89f-3c1cc7e529d4"
+          valueFrom:
+            secretKeyRef:
+              name: LogAnalytics
+              key: WorkSpaceID
         - name: FLUENT_AZURE_WORKSPACE_KEY
-          value: "7JYOyfC9oNkRJEfp/2TZ5JG2y6ro71tnE+xulcS/oE+rCOesJLVtVmfgBbV/wSpz9vqqpe4F6npLld2f/7Idwg=="
+          valueFrom:
+            secretKeyRef:
+              name: LogAnalytics
+              key: WorkspaceKey
         volumeMounts:
         - name: varlog
           mountPath: /var/log
