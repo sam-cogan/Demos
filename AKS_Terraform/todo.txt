@@ -1,0 +1,9 @@
+DNS Entry for Ingress - done
+Add in virtual network creatio or using existing
+NSG
+    - Association
+    - Rules
+Prometheus
+    - Alerts
+    - Monitors
+Fluent Bit Log Exporting
