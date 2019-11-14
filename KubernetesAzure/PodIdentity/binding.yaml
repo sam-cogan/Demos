@@ -1,0 +1,8 @@
+apiVersion: aadpodidentity.k8s.io/v1
+kind: AzureIdentityBinding
+metadata:
+  name: kvflex-binding
+  selfLink: /apis/aadpodidentity.k8s.io/v1/namespaces/default/azureidentitybindings/demo1-azure-identity-binding
+spec:
+  AzureIdentity: demoidentity
+  Selector: kvflex-binding
