@@ -1,0 +1,62 @@
+data:
+  FUNCTIONS_WORKER_RUNTIME: bm9kZQ==
+  AzureWebJobsStorage: RGVmYXVsdEVuZHBvaW50c1Byb3RvY29sPWh0dHBzO0FjY291bnROYW1lPWtlZGFkZW1vMDE7QWNjb3VudEtleT1EUmJma09tK3Rpc3YzTDJ2dTRkS0hMNG5oTkVsNFJiRXRFSm1uQWpNR2x6djRiSW9VUE1WUituNW9jSDRKR1JGVkpPclJOeTJ4VGlHVmU5cUZHUERkQT09O0VuZHBvaW50U3VmZml4PWNvcmUud2luZG93cy5uZXQ=
+apiVersion: v1
+kind: Secret
+metadata:
+  name: keda
+  namespace: default
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: keda
+  namespace: default
+  labels:
+    app: keda
+spec:
+  selector:
+    matchLabels:
+      app: keda
+  template:
+    metadata:
+      labels:
+        app: keda
+    spec:
+      containers:
+      - name: keda
+        image: samcogan/keda
+        env:
+        - name: AzureFunctionsJobHost__functions__0
+          value: QueueTrigger
+        envFrom:
+        - secretRef:
+            name: keda
+      tolerations:
+      - operator: Exists
+---
+apiVersion: keda.k8s.io/v1alpha1
+kind: ScaledObject
+metadata:
+  name: keda
+  namespace: default
+  labels:
+    deploymentName: keda
+spec:
+  scaleTargetRef:
+    deploymentName: keda
+    pollingInterval: 10
+    cooldownPeriod: 30
+    minReplicaCount: 0
+    maxReplicaCount: 500
+  triggers:
+  - type: azure-queue
+    metadata:
+      name: myQueueItem
+      type: queueTrigger
+      direction: in
+      queueName: js-queue-items
+      connection: AzureWebJobsStorage
+      queueLength: '3'
+---
+
