@@ -53,3 +53,4 @@ AKS_Terraform/.terraform/plugins/windows_amd64/terraform-provider-azurerm_v1.29.
 TerraformARM/terraform.tfstate
 TerraformARM/.terraform/plugins/linux_amd64/lock.json
 TerraformARM/.terraform/plugins/linux_amd64/terraform-provider-azurerm_v1.43.0_x4
+TerraformARM/.terraform.tfstate.lock.info
