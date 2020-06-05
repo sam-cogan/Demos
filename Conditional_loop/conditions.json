@@ -1,0 +1,150 @@
+
+    {
+    "$schema": "https://schema.management.azure.com/schemas/2015-01-01/deploymentTemplate.json#",
+    "contentVersion": "1.0.0.0",
+    "parameters": {
+        "NetworkInterfaceType": {
+            "type": "string",
+            "metadata": {
+                "description": "Whether to have a public or private NIC"
+            },
+            "allowedValues": [
+                "Public",
+                "Private"
+            ]
+        },
+        "nic_count": {
+            "type": "int",
+            "metadata": {
+                "description": "number of NIC's to create"
+            },
+            "defaultValue": 1
+        }
+
+    },
+    "functions": [
+        {
+            "namespace": "samcogan",
+            "members": {
+                "get_nic_id": {
+                    "parameters": [
+                        {
+                            "name": "namePrefix",
+                            "type": "string"
+                        },
+                        {
+                            "name": "count",
+                            "type": "int"
+                        }
+                    ],
+                    "output": {
+                        "type": "object",
+                        "value": "[json(concat('{\"id\":', '\"',resourceId('Microsoft.Network/publicIPAddresses',Concat(parameters('namePrefix'),padleft(parameters('count'),2,'0'))),'\"}'))]"
+                    }
+                }
+            }
+        }
+    ],
+    "variables": {
+        "NetworkName": "lambda-vnet",
+        "Subnet1Name": "lambda-subnet1",
+        "Subnet2Name": "lambda-subnet2",
+        "NICName": "lambdanic",
+        "PublicIPName": "[concat(variables('NICName'),'-pip')]"
+
+    },
+    "resources": [
+
+        {
+            "apiVersion": "2015-06-15",
+            "type": "Microsoft.Network/virtualNetworks",
+            "name": "[variables('NetworkName')]",
+            "location": "[resourceGroup().location]",
+            "tags": {
+                "displayName": "[variables('NetworkName')]"
+            },
+            "properties": {
+                "addressSpace": {
+                    "addressPrefixes": [
+                        "10.0.0.0/16"
+                    ]
+                },
+                "subnets": [
+                    {
+                        "name": "[variables('Subnet1Name')]",
+                        "properties": {
+                            "addressPrefix": "10.0.0.0/24"
+                        }
+                    },
+
+                    {
+                        "name": "[variables('Subnet2Name')]",
+
+                        "properties": {
+                            "addressPrefix": "10.0.1.0/24"
+                        }
+                    }
+                ]
+            }
+        },
+
+
+        {
+            "apiVersion": "2019-11-01",
+            "type": "Microsoft.Network/publicIPAddresses",
+            "copy": {
+                "name": "pipcopy",
+                "count": "[parameters('nic_count')]"
+            },
+            "name": "[concat(variables('PublicIPName'),padleft(copyIndex(1),2,'0'))]",
+            "condition": "[equals(parameters('NetworkInterfaceType'),'Public')]",
+            "location": "[resourceGroup().location]",
+            "tags": {
+                "displayName": "[Concat(variables('NICName'),'-pip',padleft(copyIndex(1),2,'0'))]"
+            },
+            "properties": {
+                "publicIPAllocationMethod": "static",
+                "dnsSettings": {
+                    "domainNameLabel": "[Concat(variables('NICName'),'-pip',padleft(copyIndex(1),2,'0'))]"
+                }
+            }
+        },
+        {
+
+            "apiVersion": "2019-11-01",
+            "type": "Microsoft.Network/networkInterfaces",
+            "name": "[concat(variables('NICName'),padleft(copyIndex(1),2,'0'))]",
+            "location": "[resourceGroup().location]",
+            "tags": {
+                "displayName": "parameters('NICName')"
+            },
+            "copy": {
+                "name": "storagecopy",
+                "count": "[parameters('nic_count')]"
+            },
+            "dependsOn": [
+                "[concat ('Microsoft.Network/virtualNetworks/',variables('NetworkName'))]",
+                "[concat('Microsoft.Network/publicIPAddresses/', variables('PublicIPName'),padleft(copyIndex(1),2,'0'))]"
+            ],
+            "properties": {
+                "ipConfigurations": [
+                    {
+                        "name": "ipconfig1",
+                        "properties": {
+                            "privateIPAllocationMethod": "dynamic",
+                            "subnet": {
+                                "id": "[concat(resourceId('Microsoft.Network/virtualNetworks', variables('NetworkName')), '/subnets/',variables('Subnet1Name'))]"
+                            },
+                            "publicIPAddress": "[if(equals(parameters('NetworkInterfaceType'),'Public'),samcogan.get_nic_id(variables('PublicIPName'),copyIndex(1)) , json('null'))]"
+                        }
+                    }
+                ]
+            }
+        }
+
+
+
+    ],
+    "outputs": {
+    }
+}
